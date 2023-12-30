@@ -42,7 +42,7 @@ Load pre-trained `trankit` model into a spaCy pipeline:
 import spacy_trankit
 
 # Initialize the pipeline
-nlp = spacy_trankit.load("english")
+nlp = spacy_trankit.load("en")
 
 doc = nlp("Barack Obama was born in Hawaii. He was elected president in 2008.")
 for token in doc:
