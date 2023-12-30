@@ -8,7 +8,7 @@ This package wraps the [Trankit](https://github.com/nlp-uoregon/trankit) library
 
 [//]: # ([![tests]&#40;https://github.com/imvladikon/spacy-trankit/actions/workflows/tests.yml/badge.svg&#41;]&#40;https://github.com/imvladikon/spacy-trankit/actions/workflows/tests.yml&#41;)
 [//]: # ([![PyPi]&#40;https://img.shields.io/pypi/v/spacy-trankit.svg?style=flat-square&#41;]&#40;https://pypi.python.org/pypi/spacy-trankit&#41;)
-[//]: # ([![GitHub]&#40;https://img.shields.io/github/release/imvladikon/spacy-trankit/all.svg?style=flat-square&#41;]&#40;https://github.com/imvladikon/spacy-trankit&#41;)
+[![GitHub](https://img.shields.io/github/release/imvladikon/spacy-trankit/all.svg?style=flat-square)](https://github.com/imvladikon/spacy-trankit)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg?style=flat-square)](https://github.com/ambv/black)
 
 Using this wrapper, you'll be able to use the following annotations, computed by
