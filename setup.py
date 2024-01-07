@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# pylint: disable=C0114, C0116, W0613, C0103
 import importlib
+import importlib.util
 import os
 
 import setuptools
@@ -10,8 +12,6 @@ __location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file
 
 
 def __import_file__(filename: str):
-    import importlib.util
-
     spec = importlib.util.spec_from_file_location(os.path.basename(filename), filename)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -26,28 +26,6 @@ def get_version(package_name: str):
 __version__ = get_version(__package_name__)
 
 
-def get_extra_requires(path, add_all: bool = True) -> dict:
-    import re
-    from collections import defaultdict
-
-    with open(path) as fp:
-        extra_deps = defaultdict(set)
-        for k in fp:
-            if k.strip() and not k.startswith("#"):
-                tags = set()
-                if ":" in k:
-                    k, v = k.split(":")
-                    tags.update(vv.strip() for vv in v.split(","))
-                tags.add(re.split("[<=>]", k)[0])
-                for t in tags:
-                    extra_deps[t].add(k)
-
-        # add tag `all` at the end
-        if add_all:
-            extra_deps["all"] = set(vv for v in extra_deps.values() for vv in v)
-    return extra_deps
-
-
 def read_requirements():
     """Parses requirements from requirements.txt"""
     reqs_path = os.path.join(__location__, "requirements.txt")
@@ -57,7 +35,7 @@ def read_requirements():
 
 
 def read_readme():
-    with open(os.path.join(__location__, "README.md"), "r") as f:
+    with open(os.path.join(__location__, "README.md"), "r", encoding="utf8") as f:
         long_description = f.read()
     return long_description
 

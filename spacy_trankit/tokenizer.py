@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# pylint: disable=C0114, C0115, C0116, W0613
 import logging
 import os.path
 import re
 import warnings
 from typing import List, Tuple, Dict, Optional
 
+from spacy import Vocab
 from spacy.tokens import Doc
 from spacy.util import registry
-from spacy.vocab import Vocab
 from trankit import Pipeline
 from trankit.utils import code2lang, lang2treebank
 
@@ -20,7 +21,7 @@ logging.getLogger("trankit").setLevel(logging.CRITICAL)
 def create_tokenizer(lang: str, cache_dir: Optional[str] = None):
     def tokenizer_factory(
         nlp, lang=lang, cache_dir=cache_dir, **kwargs
-    ) -> TrankitTokenizer:
+    ) -> "TrankitTokenizer":
         load_from_path = cache_dir is not None
         if lang not in lang2treebank and lang in code2lang:
             lang = code2lang[lang]
@@ -46,11 +47,7 @@ class TrankitTokenizer:
         self._ws_pattern = re.compile(r"\s+")
 
     def __call__(self, text):
-        """Convert a Stanza Doc to a spaCy Doc.
-
-        text (unicode): The text to process.
-        RETURNS (spacy.tokens.Doc): The spaCy Doc object.
-        """
+        # pylint: disable=too-many-locals, too-many-branches, too-many-statements, no-else-return
         if not text:
             return Doc(self.vocab)
         elif text.isspace():
@@ -60,12 +57,7 @@ class TrankitTokenizer:
         text = doc["text"]
         snlp_tokens, snlp_heads, entities = self.get_tokens_with_heads(doc)
 
-        pos = []
-        tags = []
-        morphs = []
-        deps = []
-        heads = []
-        lemmas = []
+        pos, tags, morphs, deps, heads, lemmas = [], [], [], [], [], []
         token_texts = [t["text"] for t in snlp_tokens]
         is_aligned = True
         try:
@@ -83,7 +75,8 @@ class TrankitTokenizer:
         offset = 0
         for i, word in enumerate(words):
             if word.isspace() and (
-                i + offset >= len(snlp_tokens) or word != snlp_tokens[i + offset]["text"]
+                i + offset >= len(snlp_tokens)
+                or word != snlp_tokens[i + offset]["text"]
             ):
                 # insert a space token
                 pos.append("SPACE")
@@ -94,6 +87,7 @@ class TrankitTokenizer:
 
                 # increment any heads left of this position that point beyond
                 # this position to the right (already present in heads)
+                # pylint: disable=consider-using-enumerate
                 for j in range(0, len(heads)):
                     if j + heads[j] >= i:
                         heads[j] += 1
@@ -146,7 +140,7 @@ class TrankitTokenizer:
                     f"expansion or because the character offsets don't map to "
                     f"valid tokens produced by the Trankit tokenizer:\n"
                     f"Words: {words}\n"
-                    f"Entities: {[(label, start, end) for label, start, end in entities]}",
+                    f"Entities: {entities}",
                     stacklevel=4,
                 )
             else:
@@ -155,10 +149,7 @@ class TrankitTokenizer:
         return spacy_doc
 
     def normalize_entity_tag(self, tag):
-        if "-" in tag:
-            return tag.split("-")[-1]
-        else:
-            return tag
+        return tag.split("-")[-1] if "-" in tag else tag
 
     def pipe(self, texts):
         """Tokenize a stream of texts.
@@ -208,7 +199,6 @@ class TrankitTokenizer:
                                 )
                             )
                 s_offset += len(words)
-                char_offset = token["span"][1]
             offset += s_offset
         return tokens, heads, entities
 
@@ -224,8 +214,10 @@ class TrankitTokenizer:
         for word in norm_words:
             try:
                 word_start = text[text_pos:].index(word)
-            except ValueError:
-                raise ValueError("Unable to align mismatched text and words.")
+            except ValueError as error:
+                raise ValueError(
+                    "Unable to align mismatched text and words."
+                ) from error
             if word_start > 0:
                 text_words.append(text[text_pos : text_pos + word_start])
                 text_spaces.append(False)
