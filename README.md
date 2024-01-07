@@ -32,6 +32,11 @@ the most recent version:
 pip install git+https://github.com/imvladikon/spacy-trankit
 ```
 
+or from pypi:
+
+```bash
+pip install spacy-trankit
+```
 
 
 ## 📖 Usage & Examples
