@@ -185,11 +185,11 @@ class TrankitTokenizer:
                 do_alignment = "".join(mwt_words).strip() != token["text"].strip()
                 if do_alignment:
                     try:
-                        a2b, _ = spacy_alignments.get_alignments(
+                        a2b, b2a = spacy_alignments.get_alignments(
                             mwt_words, [token["text"]]
                         )
                         fixed_words = []
-                        for alignments in a2b:
+                        for alignments in b2a:
                             for alignment in alignments:
                                 fixed_words.append(words[alignment])
                         words = fixed_words
