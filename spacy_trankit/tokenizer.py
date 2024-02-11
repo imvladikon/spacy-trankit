@@ -13,6 +13,9 @@ from spacy.util import registry
 from trankit import Pipeline
 from trankit.utils import code2lang, lang2treebank
 
+import spacy_alignments
+
+
 logger = logging.getLogger(__name__)
 logging.getLogger("trankit").setLevel(logging.CRITICAL)
 
@@ -177,6 +180,21 @@ class TrankitTokenizer:
             s_offset = 0
             for token in sentence["tokens"]:
                 words = token.get("expanded", [token])
+                mwt_words = [w["text"] for w in words]
+                # temporary workaround in the case of the trankit MWT 'hallucination' cases
+                do_alignment = "".join(mwt_words).strip() != token["text"].strip()
+                if do_alignment:
+                    try:
+                        a2b, _ = spacy_alignments.get_alignments(
+                            mwt_words, [token["text"]]
+                        )
+                        fixed_words = []
+                        for alignments in a2b:
+                            for alignment in alignments:
+                                fixed_words.append(words[alignment])
+                        words = fixed_words
+                    except:
+                        pass
                 for word in words:
                     # Here, we're calculating the absolute token index in the doc,
                     # then the *relative* index of the head, -1 for zero-indexed
