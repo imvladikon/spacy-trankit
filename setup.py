@@ -30,7 +30,11 @@ def read_requirements():
     """Parses requirements from requirements.txt"""
     reqs_path = os.path.join(__location__, "requirements.txt")
     with open(reqs_path, encoding="utf8") as f:
-        reqs = [line.strip() for line in f if not line.strip().startswith("#")]
+        reqs = [
+            line.strip()
+            for line in f
+            if line.strip() and not line.strip().startswith("#")
+        ]
     return {"install_requires": reqs}
 
 
@@ -58,9 +62,18 @@ if __name__ == "__main__":
         ),
         classifiers=[
             "Programming Language :: Python :: 3",
+            "Programming Language :: Python :: 3 :: Only",
+            "Programming Language :: Python :: 3.8",
+            "Programming Language :: Python :: 3.9",
+            "Programming Language :: Python :: 3.10",
+            "Programming Language :: Python :: 3.11",
+            "Programming Language :: Python :: 3.12",
+            "License :: OSI Approved :: MIT License",
+            "Operating System :: OS Independent",
             "Topic :: Scientific/Engineering",
+            "Topic :: Text Processing :: Linguistic",
         ],
-        python_requires=">=3.8",
+        python_requires=">=3.9",
         package_dir={__package_name__: __package_name__},
         **read_requirements()
     )

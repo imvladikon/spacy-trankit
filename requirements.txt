@@ -1,4 +1,3 @@
 nltk
 spacy
 trankit
-spacy-alignments
