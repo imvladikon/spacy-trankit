@@ -39,6 +39,46 @@ def _is_py312_dataclass_error(exc: Exception) -> bool:
     )
 
 
+def _modern_hf_bucket_url(
+    model_id: str, filename: str, use_cdn: bool = True
+) -> str:
+    del use_cdn
+    base_url = os.environ.get(
+        "SPACY_TRANKIT_HF_BASE_URL", "https://huggingface.co"
+    ).rstrip("/")
+    return f"{base_url}/{model_id}/resolve/main/{filename}"
+
+
+def _patch_trankit_hf_download_endpoints(modules: Optional[List[object]] = None) -> None:
+    if modules is None:
+        modules = []
+        try:
+            import trankit.adapter_transformers.file_utils as file_utils
+
+            modules.append(file_utils)
+        except ImportError:
+            pass
+        for module_name in (
+            "trankit.adapter_transformers.modeling_utils",
+            "trankit.adapter_transformers.configuration_utils",
+        ):
+            module = sys.modules.get(module_name)
+            if module is not None:
+                modules.append(module)
+
+    for module in modules:
+        if hasattr(module, "S3_BUCKET_PREFIX"):
+            module.S3_BUCKET_PREFIX = os.environ.get(
+                "SPACY_TRANKIT_HF_BASE_URL", "https://huggingface.co"
+            ).rstrip("/")
+        if hasattr(module, "CLOUDFRONT_DISTRIB_PREFIX"):
+            module.CLOUDFRONT_DISTRIB_PREFIX = os.environ.get(
+                "SPACY_TRANKIT_HF_BASE_URL", "https://huggingface.co"
+            ).rstrip("/")
+        if hasattr(module, "hf_bucket_url"):
+            module.hf_bucket_url = _modern_hf_bucket_url
+
+
 def _patch_trankit_adapter_config_for_py312(
     adapter_config_path: Optional[Path] = None,
 ) -> bool:
@@ -86,8 +126,12 @@ def _patch_trankit_adapter_config_for_py312(
 def _import_trankit():
     try:
         from trankit import Pipeline as _Pipeline
-        from trankit.utils import code2lang as _code2lang, lang2treebank as _lang2treebank
+        from trankit.utils import (
+            code2lang as _code2lang,
+            lang2treebank as _lang2treebank,
+        )
 
+        _patch_trankit_hf_download_endpoints()
         return _Pipeline, _code2lang, _lang2treebank, None
     except (ImportError, ValueError) as exc:  # pragma: no cover - env-dependent
         if sys.version_info >= (3, 12) and _is_py312_dataclass_error(exc):
@@ -97,8 +141,12 @@ def _import_trankit():
                         sys.modules.pop(module_name, None)
                 try:
                     from trankit import Pipeline as _Pipeline
-                    from trankit.utils import code2lang as _code2lang, lang2treebank as _lang2treebank
+                    from trankit.utils import (
+                        code2lang as _code2lang,
+                        lang2treebank as _lang2treebank,
+                    )
 
+                    _patch_trankit_hf_download_endpoints()
                     return _Pipeline, _code2lang, _lang2treebank, None
                 except (ImportError, ValueError) as retry_exc:
                     return None, {}, {}, retry_exc

@@ -4,6 +4,7 @@ import importlib.util
 import os
 import pathlib
 import tempfile
+import types
 import unittest
 import zipfile
 from unittest import mock
@@ -14,6 +15,8 @@ import spacy_trankit
 from spacy_trankit import tokenizer as tokenizer_module
 from spacy_trankit.tokenizer import (
     TrankitTokenizer,
+    _modern_hf_bucket_url,
+    _patch_trankit_hf_download_endpoints,
     _patch_trankit_adapter_config_for_py312,
     ensure_trankit_model,
 )
@@ -413,6 +416,28 @@ class TestTrankitPy312Patch(unittest.TestCase):
             self.assertTrue(patched)
             patched_text = adapter_config.read_text(encoding="utf-8")
             self.assertIn("default_factory=lambda: InvertibleAdapterConfig(", patched_text)
+
+
+class TestTrankitHFEndpointPatch(unittest.TestCase):
+    def test_hf_bucket_url_uses_resolve_main(self):
+        self.assertEqual(
+            _modern_hf_bucket_url("xlm-roberta-base", "pytorch_model.bin"),
+            "https://huggingface.co/xlm-roberta-base/resolve/main/pytorch_model.bin",
+        )
+
+    def test_endpoint_patch_replaces_legacy_download_hosts(self):
+        module = types.SimpleNamespace(
+            S3_BUCKET_PREFIX="https://s3.amazonaws.com/models.huggingface.co/bert",
+            CLOUDFRONT_DISTRIB_PREFIX="https://cdn.huggingface.co",
+            hf_bucket_url=lambda model_id, filename, use_cdn=True: "legacy",
+        )
+        _patch_trankit_hf_download_endpoints([module])
+        self.assertEqual(module.S3_BUCKET_PREFIX, "https://huggingface.co")
+        self.assertEqual(module.CLOUDFRONT_DISTRIB_PREFIX, "https://huggingface.co")
+        self.assertEqual(
+            module.hf_bucket_url("xlm-roberta-base", "config.json"),
+            "https://huggingface.co/xlm-roberta-base/resolve/main/config.json",
+        )
 
 
 @unittest.skipUnless(
