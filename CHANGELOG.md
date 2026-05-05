@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.2
+
+- Fix Python 3.12 compatibility with Trankit's `adapter_config` dataclass
+  defaults by auto-applying a runtime patch before importing Trankit.
+- Keep `import spacy_trankit` working even when Trankit is broken, and only
+  fail at tokenizer creation with actionable context.
+
 ## 0.2.1
 
 - Publish patch release to recover from the removed 0.2.0 artifacts on PyPI.
