@@ -28,9 +28,9 @@ your pretrained `trankit` pipeline/model:
 ## ️️️⌛️ Installation
 
 As of v0.2.1 `spacy-trankit` is only compatible with **spaCy v3.x**.
-`trankit` itself is currently incompatible with Python 3.12 (dataclass
-validation error in `adapter_transformers`), so run examples on Python 3.11 or
-3.10 until upstream support lands. To install the most recent version:
+On Python 3.12, `spacy-trankit` applies a runtime compatibility patch for the
+current `trankit` dataclass issue in `adapter_transformers` before creating the
+pipeline. To install the most recent version:
 
 ```bash
 pip install git+https://github.com/imvladikon/spacy-trankit

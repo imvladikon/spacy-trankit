@@ -12,7 +12,11 @@ from spacy.vocab import Vocab
 
 import spacy_trankit
 from spacy_trankit import tokenizer as tokenizer_module
-from spacy_trankit.tokenizer import TrankitTokenizer, ensure_trankit_model
+from spacy_trankit.tokenizer import (
+    TrankitTokenizer,
+    _patch_trankit_adapter_config_for_py312,
+    ensure_trankit_model,
+)
 
 
 class FakePipeline:
@@ -389,6 +393,26 @@ class TestEnsureTrankitModel(unittest.TestCase):
                 (cache_dir / "xlm-roberta-base" / "english"
                  / "english.downloaded").exists()
             )
+
+
+class TestTrankitPy312Patch(unittest.TestCase):
+    def test_patches_mutable_default_to_default_factory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            adapter_config = pathlib.Path(tmp) / "adapter_config.py"
+            adapter_config.write_text(
+                "@dataclass\n"
+                "class PfeifferConfig(AdapterConfig):\n"
+                "    invertible_adapter: Optional[dict] = InvertibleAdapterConfig(\n"
+                '        block_type="nice", non_linearity="relu", reduction_factor=2\n'
+                "    )\n",
+                encoding="utf-8",
+            )
+
+            patched = _patch_trankit_adapter_config_for_py312(adapter_config)
+
+            self.assertTrue(patched)
+            patched_text = adapter_config.read_text(encoding="utf-8")
+            self.assertIn("default_factory=lambda: InvertibleAdapterConfig(", patched_text)
 
 
 @unittest.skipUnless(

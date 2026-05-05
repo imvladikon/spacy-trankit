@@ -5,9 +5,12 @@ import logging
 import os
 import os.path
 import re
+import sys
 import urllib.request
 import warnings
 import zipfile
+from importlib.util import find_spec
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from spacy import Vocab
@@ -28,15 +31,81 @@ try:  # pragma: no cover - import-time shim
 except ImportError:
     pass
 
-TRANKIT_IMPORT_ERROR = None
-try:
-    from trankit import Pipeline
-    from trankit.utils import code2lang, lang2treebank
-except (ImportError, ValueError) as exc:  # pragma: no cover - env-dependent
-    Pipeline = None
-    code2lang = {}
-    lang2treebank = {}
-    TRANKIT_IMPORT_ERROR = exc
+def _is_py312_dataclass_error(exc: Exception) -> bool:
+    return (
+        isinstance(exc, ValueError)
+        and "mutable default" in str(exc)
+        and "adapter_config" in str(exc)
+    )
+
+
+def _patch_trankit_adapter_config_for_py312(
+    adapter_config_path: Optional[Path] = None,
+) -> bool:
+    if adapter_config_path is None:
+        spec = find_spec("trankit")
+        if (
+            spec is None
+            or spec.submodule_search_locations is None
+            or len(spec.submodule_search_locations) == 0
+        ):
+            return False
+        adapter_config_path = (
+            Path(spec.submodule_search_locations[0])
+            / "adapter_transformers"
+            / "adapter_config.py"
+        )
+    if not adapter_config_path.exists():
+        return False
+
+    source = adapter_config_path.read_text(encoding="utf-8")
+    if "default_factory=lambda: InvertibleAdapterConfig(" in source:
+        return True
+
+    target = (
+        "invertible_adapter: Optional[dict] = InvertibleAdapterConfig(\n"
+        '        block_type="nice", non_linearity="relu", reduction_factor=2\n'
+        "    )"
+    )
+    replacement = (
+        "invertible_adapter: Optional[dict] = field(\n"
+        "        default_factory=lambda: InvertibleAdapterConfig(\n"
+        '            block_type="nice", non_linearity="relu", reduction_factor=2\n'
+        "        )\n"
+        "    )"
+    )
+    if target not in source:
+        return False
+
+    adapter_config_path.write_text(
+        source.replace(target, replacement), encoding="utf-8"
+    )
+    return True
+
+
+def _import_trankit():
+    try:
+        from trankit import Pipeline as _Pipeline
+        from trankit.utils import code2lang as _code2lang, lang2treebank as _lang2treebank
+
+        return _Pipeline, _code2lang, _lang2treebank, None
+    except (ImportError, ValueError) as exc:  # pragma: no cover - env-dependent
+        if sys.version_info >= (3, 12) and _is_py312_dataclass_error(exc):
+            if _patch_trankit_adapter_config_for_py312():
+                for module_name in list(sys.modules.keys()):
+                    if module_name == "trankit" or module_name.startswith("trankit."):
+                        sys.modules.pop(module_name, None)
+                try:
+                    from trankit import Pipeline as _Pipeline
+                    from trankit.utils import code2lang as _code2lang, lang2treebank as _lang2treebank
+
+                    return _Pipeline, _code2lang, _lang2treebank, None
+                except (ImportError, ValueError) as retry_exc:
+                    return None, {}, {}, retry_exc
+        return None, {}, {}, exc
+
+
+Pipeline, code2lang, lang2treebank, TRANKIT_IMPORT_ERROR = _import_trankit()
 
 
 logger = logging.getLogger(__name__)
@@ -106,8 +175,7 @@ def create_tokenizer(
             )
             if (
                 isinstance(TRANKIT_IMPORT_ERROR, ValueError)
-                and "mutable default" in str(TRANKIT_IMPORT_ERROR)
-                and "adapter_config" in str(TRANKIT_IMPORT_ERROR)
+                and _is_py312_dataclass_error(TRANKIT_IMPORT_ERROR)
             ):
                 msg += (
                     " Detected an incompatible trankit build on Python 3.12 "
