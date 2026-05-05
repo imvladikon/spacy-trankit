@@ -2,5 +2,44 @@
 requires = ["setuptools>=61", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[project]
+name = "spacy-trankit"
+description = "spacy wrapper for Trankit, a Transformer-based multilingual neural dependency parser with tokenization and NER"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [{name = "Vladimir Gurevich"}]
+requires-python = ">=3.9"
+dependencies = [
+    "spacy",
+    "trankit",
+]
+dynamic = ["version"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Text Processing :: Linguistic",
+]
+
+[project.urls]
+Homepage = "https://github.com/imvladikon/spacy-trankit"
+Repository = "https://github.com/imvladikon/spacy-trankit"
+Issues = "https://github.com/imvladikon/spacy-trankit/issues"
+
+[tool.setuptools.dynamic]
+version = {attr = "spacy_trankit.version.__version__"}
+
+[tool.setuptools.packages.find]
+exclude = ["tests", "tests.*"]
+
+[tool.setuptools.package-data]
+spacy_trankit = ["py.typed"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

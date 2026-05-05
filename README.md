@@ -93,3 +93,20 @@ for token in doc:
     print(token.text, token.lemma_, token.pos_, token.dep_, token.ent_type_)
 print(doc.ents)
 ```
+
+## 📦 Model downloads
+
+The Trankit release on PyPI fetches its pretrained models from
+`nlp.uoregon.edu`, which is currently unavailable. `spacy-trankit` bypasses
+that broken download path and pulls the same artifacts from Trankit's
+HuggingFace mirror (`https://huggingface.co/uonlp/trankit`) into the local
+cache before instantiating the Trankit pipeline. The behaviour is automatic;
+no extra setup is needed.
+
+If you mirror the artifacts elsewhere (e.g. for offline / air-gapped use),
+point `spacy-trankit` at it via the `SPACY_TRANKIT_MODEL_URL` environment
+variable. The template understands `{version}`, `{embedding}` and `{lang}`:
+
+```bash
+export SPACY_TRANKIT_MODEL_URL="https://my-mirror.example.com/trankit/{version}/{embedding}/{lang}.zip"
+```

@@ -2,12 +2,15 @@
 # -*- coding: utf-8 -*-
 import importlib.util
 import os
+import pathlib
+import tempfile
 import unittest
+import zipfile
 
 from spacy.vocab import Vocab
 
 import spacy_trankit
-from spacy_trankit.tokenizer import TrankitTokenizer
+from spacy_trankit.tokenizer import TrankitTokenizer, ensure_trankit_model
 
 
 class FakePipeline:
@@ -300,6 +303,75 @@ class TestTokenizer(unittest.TestCase):
         self.assertEqual(doc.text, "abc")
         self.assertEqual([token.text for token in doc], ["a", "bc"])
         self.assertIsNone(doc[0]._.trankit_expanded)
+
+
+class TestEnsureTrankitModel(unittest.TestCase):
+    def _build_fake_zip(self, tmp_path: pathlib.Path) -> pathlib.Path:
+        zip_path = tmp_path / "english.zip"
+        with zipfile.ZipFile(zip_path, "w") as zf:
+            zf.writestr("english.tokenizer.mdl", b"fake-bytes")
+            zf.writestr("english.vocabs.json", b"{}")
+        return zip_path
+
+    def test_downloads_extracts_and_writes_marker(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = pathlib.Path(tmp)
+            zip_path = self._build_fake_zip(tmp_path)
+            url_template = (zip_path.resolve().as_uri()
+                            .replace("english.zip", "{lang}.zip"))
+            cache_dir = tmp_path / "cache"
+
+            ensure_trankit_model(
+                str(cache_dir),
+                "english",
+                embedding="xlm-roberta-base",
+                version="v1.0.0",
+                url_template=url_template,
+            )
+
+            lang_dir = cache_dir / "xlm-roberta-base" / "english"
+            self.assertTrue((lang_dir / "english.tokenizer.mdl").exists())
+            self.assertTrue((lang_dir / "english.vocabs.json").exists())
+            self.assertTrue((lang_dir / "english.downloaded").exists())
+            self.assertFalse((lang_dir / "english.zip").exists())
+
+    def test_skips_when_marker_present(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cache_dir = pathlib.Path(tmp) / "cache"
+            lang_dir = cache_dir / "xlm-roberta-base" / "english"
+            lang_dir.mkdir(parents=True)
+            (lang_dir / "english.downloaded").write_text("")
+
+            ensure_trankit_model(
+                str(cache_dir),
+                "english",
+                embedding="xlm-roberta-base",
+                url_template="http://this-host-must-not-be-contacted.invalid/{lang}.zip",
+            )
+
+    def test_env_var_overrides_default_url(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = pathlib.Path(tmp)
+            zip_path = self._build_fake_zip(tmp_path)
+            os.rename(zip_path, tmp_path / "english.zip")
+            url_template = (tmp_path.resolve().as_uri()
+                            + "/{lang}.zip")
+            cache_dir = tmp_path / "cache"
+
+            os.environ["SPACY_TRANKIT_MODEL_URL"] = url_template
+            try:
+                ensure_trankit_model(
+                    str(cache_dir),
+                    "english",
+                    embedding="xlm-roberta-base",
+                )
+            finally:
+                del os.environ["SPACY_TRANKIT_MODEL_URL"]
+
+            self.assertTrue(
+                (cache_dir / "xlm-roberta-base" / "english"
+                 / "english.downloaded").exists()
+            )
 
 
 @unittest.skipUnless(

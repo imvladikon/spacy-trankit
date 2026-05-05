@@ -2,14 +2,31 @@
 # -*- coding: utf-8 -*-
 # pylint: disable=C0114, C0115, C0116, W0613
 import logging
+import os
 import os.path
 import re
+import urllib.request
 import warnings
+import zipfile
 from typing import Dict, List, Optional, Tuple
 
 from spacy import Vocab
 from spacy.tokens import Doc, Token
 from spacy.util import registry
+
+# HACK: alias `torch.optim.AdamW` onto `transformers` so Trankit's `from transformers import AdamW` import doesn't blow up on transformers 4.46+ where AdamW was removed.
+try:  # pragma: no cover - import-time shim
+    import transformers as _transformers
+
+    if not hasattr(_transformers, "AdamW"):
+        try:
+            from torch.optim import AdamW as _AdamW
+
+            _transformers.AdamW = _AdamW
+        except ImportError:
+            pass
+except ImportError:
+    pass
 
 try:
     from trankit import Pipeline
@@ -22,6 +39,54 @@ except ImportError:  # pragma: no cover - exercised in minimal CI envs
 
 logger = logging.getLogger(__name__)
 logging.getLogger("trankit").setLevel(logging.CRITICAL)
+
+
+# HACK: Trankit's PyPI release fetches models from a dead `nlp.uoregon.edu` host, so we pre-populate its cache from the HuggingFace mirror (overridable via `SPACY_TRANKIT_MODEL_URL`).
+DEFAULT_TRANKIT_MODEL_URL = (
+    "https://huggingface.co/uonlp/trankit/resolve/main"
+    "/models/{version}/{embedding}/{lang}.zip"
+)
+DEFAULT_TRANKIT_CACHE_DIR = "cache/trankit"
+DEFAULT_TRANKIT_MODEL_VERSION = "v1.0.0"
+DEFAULT_TRANKIT_EMBEDDING = "xlm-roberta-base"
+
+
+def ensure_trankit_model(
+    cache_dir: str,
+    lang: str,
+    embedding: str = DEFAULT_TRANKIT_EMBEDDING,
+    version: str = DEFAULT_TRANKIT_MODEL_VERSION,
+    url_template: Optional[str] = None,
+) -> None:
+    """Pre-fetch a Trankit model into ``cache_dir`` if it isn't already there.
+
+    Mirrors the directory layout Trankit's own ``download`` helper produces, so
+    once this returns Trankit will see ``{lang}.downloaded`` and skip its own
+    (currently broken) HTTP fetch.
+    """
+    if url_template is None:
+        url_template = os.environ.get(
+            "SPACY_TRANKIT_MODEL_URL", DEFAULT_TRANKIT_MODEL_URL
+        )
+    lang_dir = os.path.join(cache_dir, embedding, lang)
+    marker = os.path.join(lang_dir, f"{lang}.downloaded")
+    if os.path.exists(marker):
+        return
+    os.makedirs(lang_dir, exist_ok=True)
+    url = url_template.format(version=version, embedding=embedding, lang=lang)
+    zip_path = os.path.join(lang_dir, f"{lang}.zip")
+    logger.info("Downloading Trankit model %s/%s from %s", embedding, lang, url)
+    urllib.request.urlretrieve(url, zip_path)
+    try:
+        with zipfile.ZipFile(zip_path) as zf:
+            zf.extractall(lang_dir)
+    finally:
+        try:
+            os.remove(zip_path)
+        except OSError:
+            pass
+    with open(marker, "w", encoding="utf-8") as fh:
+        fh.write("")
 
 
 @registry.tokenizers("spacy_trankit.PipelineAsTokenizer.v1")
@@ -41,14 +106,19 @@ def create_tokenizer(
         if lang not in lang2treebank and lang in code2lang:
             lang = code2lang[lang]
 
+        embedding = kwargs.get("embedding", DEFAULT_TRANKIT_EMBEDDING)
         if load_from_path:
             if not os.path.exists(cache_dir):
                 raise ValueError(
                     f"Path {cache_dir} does not exist. "
                     f"Please download the model and save it to this path."
                 )
+            ensure_trankit_model(cache_dir, lang, embedding=embedding)
             model = Pipeline(lang=lang, cache_dir=cache_dir, **kwargs)
         else:
+            ensure_trankit_model(
+                DEFAULT_TRANKIT_CACHE_DIR, lang, embedding=embedding
+            )
             model = Pipeline(lang=lang, **kwargs)
         return TrankitTokenizer(
             model=model, vocab=nlp.vocab, mwt_strategy=mwt_strategy
