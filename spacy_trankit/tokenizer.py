@@ -28,13 +28,15 @@ try:  # pragma: no cover - import-time shim
 except ImportError:
     pass
 
+TRANKIT_IMPORT_ERROR = None
 try:
     from trankit import Pipeline
     from trankit.utils import code2lang, lang2treebank
-except ImportError:  # pragma: no cover - exercised in minimal CI envs
+except (ImportError, ValueError) as exc:  # pragma: no cover - env-dependent
     Pipeline = None
     code2lang = {}
     lang2treebank = {}
+    TRANKIT_IMPORT_ERROR = exc
 
 
 logger = logging.getLogger(__name__)
@@ -97,11 +99,24 @@ def create_tokenizer(
         nlp, lang=lang, cache_dir=cache_dir, **kwargs
     ) -> "TrankitTokenizer":
         if Pipeline is None:
-            raise ImportError(
-                "spacy-trankit requires trankit to create a tokenizer. "
-                "Install it with `pip install trankit` or install the package "
-                "with its runtime dependencies."
+            msg = (
+                "spacy-trankit requires a working trankit installation to "
+                "create a tokenizer. Install it with `pip install trankit` or "
+                "install the package with runtime dependencies."
             )
+            if (
+                isinstance(TRANKIT_IMPORT_ERROR, ValueError)
+                and "mutable default" in str(TRANKIT_IMPORT_ERROR)
+                and "adapter_config" in str(TRANKIT_IMPORT_ERROR)
+            ):
+                msg += (
+                    " Detected an incompatible trankit build on Python 3.12 "
+                    "(dataclass mutable default error in "
+                    "`trankit.adapter_transformers.adapter_config`). "
+                    "Use Python 3.11/3.10 or a trankit release that supports "
+                    "Python 3.12."
+                )
+            raise ImportError(msg) from TRANKIT_IMPORT_ERROR
         load_from_path = cache_dir is not None
         if lang not in lang2treebank and lang in code2lang:
             lang = code2lang[lang]

@@ -6,10 +6,12 @@ import pathlib
 import tempfile
 import unittest
 import zipfile
+from unittest import mock
 
 from spacy.vocab import Vocab
 
 import spacy_trankit
+from spacy_trankit import tokenizer as tokenizer_module
 from spacy_trankit.tokenizer import TrankitTokenizer, ensure_trankit_model
 
 
@@ -25,6 +27,21 @@ class FakePipeline:
 class TestTokenizer(unittest.TestCase):
     def make_tokenizer(self, doc, **kwargs):
         return TrankitTokenizer(FakePipeline(doc), Vocab(), **kwargs)
+
+    def test_create_tokenizer_reports_python312_trankit_issue(self):
+        factory = tokenizer_module.create_tokenizer("en")
+        fake_error = ValueError(
+            "mutable default <class "
+            "'trankit.adapter_transformers.adapter_config.InvertibleAdapterConfig'> "
+            "for field invertible_adapter is not allowed: use default_factory"
+        )
+        with mock.patch.object(tokenizer_module, "Pipeline", None), mock.patch.object(
+            tokenizer_module, "TRANKIT_IMPORT_ERROR", fake_error
+        ):
+            with self.assertRaises(ImportError) as err:
+                factory(type("FakeNLP", (), {"vocab": Vocab()})())
+        self.assertIn("Python 3.12", str(err.exception))
+        self.assertIs(err.exception.__cause__, fake_error)
 
     def test_preserves_surface_form_for_unalignable_mwt(self):
         text = "ذهبت للبيت اليوم"
