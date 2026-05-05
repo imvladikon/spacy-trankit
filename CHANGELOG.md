@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.3
+
+- Fix Trankit's backbone download path by patching legacy Hugging Face endpoint
+  usage to `https://huggingface.co/{model}/resolve/main/{file}` at runtime.
+- Keep the Python 3.12 dataclass compatibility patch for Trankit's
+  `adapter_config`, so `spacy_trankit.load("en")` works on Colab Python 3.12.
+
 ## 0.2.2
 
 - Fix Python 3.12 compatibility with Trankit's `adapter_config` dataclass
